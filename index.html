@@ -315,6 +315,9 @@
 </head>
 <body>
 
+<!-- 新增這個隱藏的輸入框來觸發手機小鍵盤 -->
+<input type="text" id="mobile-input" inputmode="numeric" style="position: absolute; top: -1000px; left: -1000px; opacity: 0; pointer-events: none;">
+
 <div class="corner corner-tl"></div>
 <div class="corner corner-tr"></div>
 <div class="corner corner-bl"></div>
@@ -631,6 +634,13 @@ function selectCell(r, c) {
   if (state.won || state.gameOver) return;
   state.selected = [r, c];
   render();
+
+  // 喚起手機原生數字鍵盤
+  const mobileInput = document.getElementById('mobile-input');
+  if (mobileInput) {
+    mobileInput.value = ''; // 確保是空的
+    mobileInput.focus();
+  }
 }
 
 document.addEventListener('click', () => {
@@ -938,7 +948,30 @@ document.getElementById('win-close').addEventListener('click', () => {
 });
 document.getElementById('gameover-close').addEventListener('click', () => newGame());
 
+// 隱藏輸入框事件 (手機虛擬鍵盤)
+const mobileInput = document.getElementById('mobile-input');
+mobileInput.addEventListener('input', (e) => {
+  const val = e.target.value;
+  if (val) {
+    const num = parseInt(val.charAt(val.length - 1), 10);
+    if (num >= 1 && num <= 9) {
+      inputNumber(num);
+    }
+    mobileInput.value = ''; // 處理完立刻清空
+  }
+});
+
+mobileInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
+    eraseCell();
+  }
+});
+
+// 桌面/實體鍵盤事件
 document.addEventListener('keydown', (e) => {
+  // 如果焦點在隱藏輸入框上，數字輸入交由 input 事件處理，避免重複輸入
+  if (e.target.id === 'mobile-input' && e.key >= '1' && e.key <= '9') return;
+
   if (e.key === 'Shift') { toggleNotesMode(); return; }
 
   if (!state.selected || state.won || state.gameOver) return;
