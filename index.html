@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>數獨 Sudoku</title>
+<title>數獨 Sudoku - Pro</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
@@ -21,6 +21,7 @@
     --teal-soft: #7fc2bc;
     --red: #c1494d;
     --border-thick: #23262b;
+    --note-color: #7b8393;
   }
 
   * { box-sizing: border-box; }
@@ -36,9 +37,9 @@
     font-family: 'IBM Plex Mono', monospace;
     min-height: 100vh;
     position: relative;
+    overflow-x: hidden;
   }
 
-  /* fine grain texture for a printed-plate feel */
   body::after {
     content: "";
     position: fixed;
@@ -50,7 +51,6 @@
     z-index: 1;
   }
 
-  /* registration-mark corners, quiet nod to a drafting sheet */
   .corner {
     position: fixed;
     width: 22px;
@@ -65,7 +65,7 @@
   .corner-br { bottom: 16px; right: 16px; border-bottom: 1.5px solid; border-right: 1.5px solid; }
 
   .wrap {
-    max-width: 920px;
+    max-width: 1080px;
     margin: 0 auto;
     padding: 44px 20px 60px;
     position: relative;
@@ -108,11 +108,12 @@
     color: #8b93a3;
     letter-spacing: 0.03em;
     transition: color 0.2s ease;
+    height: 1.2em;
   }
 
   .layout {
     display: flex;
-    gap: 36px;
+    gap: 32px;
     align-items: flex-start;
     justify-content: center;
     flex-wrap: wrap;
@@ -143,6 +144,7 @@
     gap: 0;
     border: 2.5px solid var(--border-thick);
     background: var(--border-thick);
+    user-select: none;
   }
 
   .cell {
@@ -154,16 +156,30 @@
     font-weight: 500;
     color: var(--teal);
     cursor: pointer;
-    user-select: none;
     position: relative;
-    transition: background 0.12s ease, box-shadow 0.12s ease;
+    transition: background 0.1s ease;
   }
 
-  .cell.given {
-    color: var(--ink);
-    font-weight: 600;
-    cursor: default;
+  .cell .notes-grid {
+    position: absolute;
+    inset: 2px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    pointer-events: none;
   }
+
+  .cell .note-number {
+    font-size: 10px;
+    color: var(--note-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-weight: 400;
+  }
+
+  .cell.given { color: var(--ink); font-weight: 600; cursor: default; }
 
   .cell:nth-child(3n) { border-right: 2px solid var(--border-thick); }
   .cell:nth-child(9n) { border-right: none; }
@@ -171,31 +187,32 @@
   #board .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid var(--border-thick); }
 
   .cell:not(.given):not(.error):hover { background: #f1ead6; }
-
-  .cell.selected { background: #f4e6b8; box-shadow: inset 0 0 0 2px var(--teal); }
+  .cell.selected { background: #f4e6b8; box-shadow: inset 0 0 0 2.5px var(--teal); z-index: 5; }
   .cell.peer { background: #f7f1de; }
   .cell.same-value:not(.selected) { background: #ecdfae; }
 
   .cell.error { color: var(--red); background: #f6dede; }
   .cell.error.given { color: var(--red); }
 
-  .cell.hint-fill { animation: pop 0.35s ease; }
+  .cell.hint-fill { animation: pop 0.3s ease; }
   @keyframes pop {
-    0% { transform: scale(0.6); opacity: 0; }
-    60% { transform: scale(1.15); }
+    0% { transform: scale(0.8); opacity: 0.5; }
+    70% { transform: scale(1.1); }
     100% { transform: scale(1); opacity: 1; }
   }
 
   .shake { animation: shake 0.35s ease; }
   @keyframes shake {
     0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-4px); }
-    75% { transform: translateX(4px); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
   }
 
   /* ---------- Side panel ---------- */
   .panel {
-    width: 260px;
+    width: 250px;
     display: flex;
     flex-direction: column;
     gap: 18px;
@@ -209,32 +226,18 @@
     box-shadow: 0 12px 30px -18px rgba(0,0,0,0.7);
   }
 
-  .panel-label {
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--gold-soft);
-    margin-bottom: 10px;
-  }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .panel-label { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold-soft); }
+  
+  .stat-row { display: flex; justify-content: space-between; align-items: baseline; font-family: 'Fraunces', serif; }
+  .stat-row .value { font-size: 26px; font-weight: 600; color: var(--paper); font-variant-numeric: tabular-nums; transition: color 0.3s ease; }
 
-  .stat-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-family: 'Fraunces', serif;
-  }
+  .mistake-count { font-size: 18px; color: #8b93a3; }
+  .mistake-count .current { color: var(--paper); font-weight: 600; }
+  .mistake-count.danger .current { color: var(--red); animation: pulseRed 0.5s ease 2; }
+  @keyframes pulseRed { 50% { opacity: 0.5; } }
 
-  .stat-row .value {
-    font-size: 26px;
-    font-weight: 600;
-    color: var(--paper);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .diff-buttons {
-    display: flex;
-    gap: 8px;
-  }
+  .diff-buttons { display: flex; flex-direction: column; gap: 8px; }
 
   button {
     font-family: 'IBM Plex Mono', monospace;
@@ -247,119 +250,66 @@
     cursor: pointer;
     transition: all 0.15s ease;
     flex: 1;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
   }
 
-  button:hover { border-color: var(--gold); color: var(--gold-soft); }
+  button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold-soft); background: rgba(255,255,255,0.02); }
   button:focus-visible { outline: 2px solid var(--teal-soft); outline-offset: 2px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; border-color: rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); }
 
-  .diff-buttons button.active {
-    background: var(--gold);
-    border-color: var(--gold);
-    color: #23262b;
-    font-weight: 600;
-  }
+  .diff-buttons button.active { background: var(--gold); border-color: var(--gold); color: #23262b; font-weight: 600; }
 
-  .action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+  #btn-note { width: auto; flex: none; padding: 6px 10px; font-size: 12px; border-color: rgba(123, 131, 147, 0.4); color: var(--note-color); }
+  #btn-note.active { background: var(--note-color); color: var(--paper); border-color: var(--note-color); box-shadow: 0 0 10px rgba(123, 131, 147, 0.3); }
 
-  .action-buttons button { width: 100%; text-align: left; padding: 10px 12px; letter-spacing: 0.02em; }
-  .action-buttons button .k { color: var(--teal-soft); margin-right: 6px; }
+  .action-buttons { display: flex; flex-direction: column; gap: 10px; }
+  .action-buttons button { width: 100%; text-align: left; padding: 12px; justify-content: flex-start; font-size: 14px; }
+  .action-buttons button .k { color: var(--teal-soft); margin-right: 8px; font-weight: 600; width: 1.2em; text-align: center; }
 
-  .numpad {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 6px;
-  }
-  .numpad button {
-    padding: 10px 0;
-    font-size: 16px;
-    text-align: center;
-    font-weight: 500;
-  }
+  .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .numpad button { padding: 10px 0; font-size: 16px; font-weight: 500; }
 
-  footer {
-    text-align: center;
-    margin-top: 40px;
-    font-size: 12px;
-    color: #545b6b;
-    letter-spacing: 0.05em;
-    position: relative;
-    z-index: 2;
-  }
+  footer { text-align: center; margin-top: 40px; font-size: 12px; color: #545b6b; letter-spacing: 0.05em; position: relative; z-index: 2; }
 
-  /* ---------- Win overlay ---------- */
-  #win-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(20,23,31,0.9);
-    backdrop-filter: blur(4px);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 50;
+  /* ---------- Overlays (Win / Game Over / Snarky) ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(10,12,17,0.92); backdrop-filter: blur(5px);
+    display: none; align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: opacity 0.3s ease;
   }
-  #win-overlay.show { display: flex; animation: fadeIn 0.25s ease; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  .win-card {
-    background: var(--paper);
-    color: var(--ink);
-    padding: 42px 52px;
-    border-radius: 8px;
-    text-align: center;
-    max-width: 340px;
-    box-shadow: 0 40px 90px -20px rgba(0,0,0,0.7);
-    animation: popIn 0.3s ease;
+  .overlay.show { display: flex; opacity: 1; }
+  .end-card {
+    background: var(--paper); color: var(--ink); padding: 40px 50px; border-radius: 8px; text-align: center;
+    max-width: 400px; box-shadow: 0 40px 90px -20px rgba(0,0,0,0.8);
+    transform: scale(0.9) translateY(10px); transition: transform 0.3s ease;
   }
-  @keyframes popIn {
-    from { transform: scale(0.94) translateY(6px); opacity: 0; }
-    to { transform: scale(1) translateY(0); opacity: 1; }
-  }
-  .win-card h2 {
-    font-family: 'Fraunces', serif;
-    font-size: 36px;
-    margin: 0 0 8px;
-    color: var(--teal);
-  }
-  .win-card p { color: var(--ink-soft); font-size: 13px; margin-bottom: 22px; }
-  .win-card button {
-    background: var(--teal);
-    color: var(--paper);
-    border: none;
-    padding: 11px 22px;
-    font-weight: 600;
-  }
-  .win-card button:hover { background: #266f69; color: var(--paper); }
+  .overlay.show .end-card { transform: scale(1) translateY(0); }
+  .end-card h2 { font-family: 'Fraunces', serif; font-size: 38px; margin: 0 0 10px; }
+  .end-card p { color: var(--ink-soft); font-size: 15px; margin: 0 0 25px; line-height: 1.6; white-space: pre-wrap; }
+  .end-card button.primary { background: var(--teal); color: var(--paper); border: none; padding: 12px 24px; font-weight: 600; font-size: 15px; width: 100%; }
+  .end-card button.primary:hover:not(:disabled) { background: #226b65; }
 
-  @media (max-width: 720px) {
+  #win-overlay h2 { color: var(--teal); }
+  #gameover-overlay h2 { color: var(--red); }
+  #gameover-overlay .end-card { border-top: 4px solid var(--red); }
+  
+  /* 嘲諷視窗專屬樣式 */
+  #snarky-overlay h2 { color: var(--gold); }
+  #snarky-overlay .end-card { border-top: 4px solid var(--gold); }
+  #snarky-overlay p { font-size: 18px; font-weight: 600; color: var(--ink); margin-bottom: 30px; }
+
+  @media (max-width: 850px) {
     .corner { display: none; }
-
-    #board { grid-template-columns: repeat(9, 34px); grid-template-rows: repeat(9, 34px); }
-    .cell { font-size: 16px; }
-    .panel { width: 100%; max-width: 396px; }
-    h1 { font-size: 38px; }
-
-    /* numpad becomes the first block right under the board, and
-       stays reachable near the thumb instead of drifting to the
-       bottom of a long stacked page */
+    .wrap { padding: 30px 15px; }
+    #board { grid-template-columns: repeat(9, 36px); grid-template-rows: repeat(9, 36px); }
+    .cell { font-size: 17px; }
+    .cell .note-number { font-size: 8px; }
+    .panel { width: 100%; max-width: 400px; margin: 0 auto; }
+    
     .panel-block.numpad-block {
-      order: -1;
-      position: sticky;
-      bottom: 12px;
-      z-index: 30;
-      background: rgba(27,31,42,0.94);
-      backdrop-filter: blur(8px);
+      order: -1; position: sticky; bottom: 10px; z-index: 30;
+      background: rgba(27,31,42,0.96); backdrop-filter: blur(10px);
+      border-color: rgba(255,255,255,0.1); margin-top: 10px;
     }
-    .numpad button {
-      padding: 15px 0;
-      font-size: 18px;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .cell.hint-fill, .shake, #win-overlay.show, .win-card { animation: none; }
   }
 </style>
 </head>
@@ -372,9 +322,9 @@
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">終端機的紙本謎題 001</div>
+    <div class="eyebrow">終端機的紙本謎題</div>
     <h1>數<span class="accent">獨</span> Sudoku</h1>
-    <div class="subtitle">點格子輸入，或用鍵盤數字鍵作答</div>
+    <div class="subtitle" id="game-status">點格子輸入，或按 Shift 鍵切換筆記模式</div>
   </header>
 
   <div class="layout">
@@ -384,32 +334,39 @@
 
     <div class="panel">
       <div class="panel-block numpad-block">
-        <div class="panel-label">數字鍵盤</div>
+        <div class="panel-header">
+          <div class="panel-label">數字鍵盤</div>
+          <button id="btn-note" title="切換筆記模式 (快捷鍵: Shift)">✎ 筆記</button>
+        </div>
         <div class="numpad" id="numpad"></div>
       </div>
 
       <div class="panel-block">
-        <div class="panel-label">計時 / 錯誤</div>
+        <div class="panel-label">剩餘時間 / 錯誤</div>
         <div class="stat-row">
-          <span class="value" id="timer">00:00</span>
-          <span class="value" id="mistakes" style="color:var(--red); font-size:20px;">0 誤</span>
+          <span class="value" id="timer">--:--</span>
+          <span class="mistake-count" id="mistake-panel">
+            錯誤 <span class="current" id="mistakes">0</span> / 3
+          </span>
         </div>
       </div>
 
       <div class="panel-block">
-        <div class="panel-label">難度</div>
-        <div class="diff-buttons">
-          <button data-diff="35" class="active">簡單</button>
-          <button data-diff="45">中等</button>
-          <button data-diff="55">困難</button>
+        <div class="panel-label">難度闖關 (請先解鎖)</div>
+        <div class="diff-buttons" id="diff-buttons">
+          <button data-diff="35" data-level="1" class="active">簡單 (6 分鐘)</button>
+          <button data-diff="45" data-level="2">中等 (8 分鐘)</button>
+          <button data-diff="55" data-level="3">困難 (12 分鐘)</button>
         </div>
       </div>
+    </div>
 
+    <div class="panel">
       <div class="panel-block">
-        <div class="panel-label">動作</div>
+        <div class="panel-label" style="margin-bottom: 14px;">動作</div>
         <div class="action-buttons">
-          <button id="btn-new"><span class="k">↻</span>新遊戲</button>
-          <button id="btn-hint"><span class="k">?</span>提示一格</button>
+          <button id="btn-new"><span class="k">↻</span>重新開始本局</button>
+          <button id="btn-hint"><span class="k">?</span>提示一格 (1/1)</button>
           <button id="btn-check"><span class="k">✓</span>檢查盤面</button>
           <button id="btn-erase"><span class="k">⌫</span>清除格子</button>
         </div>
@@ -417,40 +374,62 @@
     </div>
   </div>
 
-  <footer>用滑鼠或觸控點格子選取，鍵盤 1-9 輸入，Delete / Backspace 清除</footer>
+  <footer>鍵盤 1-9 輸入，方向鍵移動，Shift 切換筆記，Backspace 清除</footer>
 </div>
 
-<div id="win-overlay">
-  <div class="win-card">
+<!-- 勝利畫面 -->
+<div id="win-overlay" class="overlay">
+  <div class="end-card">
     <h2>完成了！</h2>
     <p id="win-detail">恭喜解出這個數獨。</p>
-    <button id="win-close">再玩一局</button>
+    <button id="win-close" class="primary">下一關</button>
+  </div>
+</div>
+
+<!-- 遊戲結束畫面 -->
+<div id="gameover-overlay" class="overlay">
+  <div class="end-card">
+    <h2>遊戲結束</h2>
+    <p id="gameover-desc">很遺憾，您已經達到了錯誤上限。</p>
+    <button id="gameover-close" class="primary">重新挑戰</button>
+  </div>
+</div>
+
+<!-- 嘲諷畫面 (共用模組) -->
+<div id="snarky-overlay" class="overlay">
+  <div class="end-card">
+    <h2 id="snarky-title">時間到！</h2>
+    <p id="snarky-msg">還想先把全部看完再填阿，遜咖</p>
+    <button id="snarky-close" class="primary">我知道錯了</button>
   </div>
 </div>
 
 <script>
-const SIZE = 9, BOX = 3;
+// --- 關卡難度與時間設定 ---
+const LEVEL_CONFIG = {
+  35: { level: 1, time: 6 * 60, name: '簡單' },
+  45: { level: 2, time: 8 * 60, name: '中等' },
+  55: { level: 3, time: 12 * 60, name: '困難' }
+};
 
-/* ---------------- Sudoku engine ---------------- */
-function emptyBoard() {
-  return Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-}
+const SIZE = 9, BOX = 3;
+const MAX_MISTAKES = 3;
+
+// 從 localStorage 讀取解鎖進度，預設為 1 (簡單)
+let unlockedLevel = parseInt(localStorage.getItem('sudoku_unlocked') || '1', 10);
+
+function emptyBoard() { return Array.from({length: SIZE}, () => Array(SIZE).fill(0)); }
+function emptyNotesBoard() { return Array.from({length: SIZE}, () => Array.from({length: SIZE}, () => new Set())); }
 
 function isValid(board, row, col, num) {
-  for (let i = 0; i < SIZE; i++) {
-    if (board[row][i] === num || board[i][col] === num) return false;
-  }
+  for (let i = 0; i < SIZE; i++) if (board[row][i] === num || board[i][col] === num) return false;
   const br = Math.floor(row / BOX) * BOX, bc = Math.floor(col / BOX) * BOX;
-  for (let r = br; r < br + BOX; r++)
-    for (let c = bc; c < bc + BOX; c++)
-      if (board[r][c] === num) return false;
+  for (let r = br; r < br + BOX; r++) for (let c = bc; c < bc + BOX; c++) if (board[r][c] === num) return false;
   return true;
 }
 
 function findEmpty(board) {
-  for (let r = 0; r < SIZE; r++)
-    for (let c = 0; c < SIZE; c++)
-      if (board[r][c] === 0) return [r, c];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (board[r][c] === 0) return [r, c];
   return null;
 }
 
@@ -494,282 +473,495 @@ function countSolutions(board, limit) {
   return count;
 }
 
-function cloneBoard(b) { return b.map(row => row.slice()); }
-
-function generateFullBoard() {
-  const board = emptyBoard();
-  solve(board, true);
-  return board;
-}
-
 function generatePuzzle(holes) {
-  const solution = generateFullBoard();
-  const puzzle = cloneBoard(solution);
+  const solution = emptyBoard();
+  solve(solution, true);
+  const puzzle = solution.map(row => row.slice());
   const cells = [];
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) cells.push([r,c]);
   shuffle(cells);
-
   let removed = 0;
   for (const [r, c] of cells) {
     if (removed >= holes) break;
     const backup = puzzle[r][c];
     puzzle[r][c] = 0;
-    const test = cloneBoard(puzzle);
-    if (countSolutions(test, 2) !== 1) {
-      puzzle[r][c] = backup;
-    } else {
-      removed++;
-    }
+    if (countSolutions(puzzle.map(row => row.slice()), 2) !== 1) puzzle[r][c] = backup;
+    else removed++;
   }
   return { puzzle, solution };
 }
 
-/* ---------------- Game state ---------------- */
 let state = {
-  puzzle: null,
-  solution: null,
-  board: null,
-  selected: null,
-  mistakes: 0,
-  holes: 35,
-  timerStart: null,
-  timerInterval: null,
-  started: false,
-  won: false
+  puzzle: null, solution: null, board: null, 
+  notes: null, selected: null, mistakes: 0, holes: 35,
+  timerInterval: null, timerStart: null, timeLeft: 0,
+  idleTimeout: null, // 閒置嘲諷計時器
+  started: false, won: false, gameOver: false,
+  notesMode: false, hintsUsed: 0,
+  timeTauntShown: false // 新增：是否已經觸發過時間過半的嘲諷
 };
 
-const boardEl = document.getElementById('board');
-const timerEl = document.getElementById('timer');
-const mistakesEl = document.getElementById('mistakes');
-const numpadEl = document.getElementById('numpad');
-const winOverlay = document.getElementById('win-overlay');
-const winDetail = document.getElementById('win-detail');
+const els = {
+  board: document.getElementById('board'),
+  timer: document.getElementById('timer'),
+  mistakes: document.getElementById('mistakes'),
+  mistakePanel: document.getElementById('mistake-panel'),
+  numpad: document.getElementById('numpad'),
+  status: document.getElementById('game-status'),
+  btnNote: document.getElementById('btn-note'),
+  btnHint: document.getElementById('btn-hint'),
+  winOverlay: document.getElementById('win-overlay'),
+  winDetail: document.getElementById('win-detail'),
+  gameOverOverlay: document.getElementById('gameover-overlay'),
+  gameoverDesc: document.getElementById('gameover-desc'),
+  snarkyOverlay: document.getElementById('snarky-overlay'),
+  snarkyTitle: document.getElementById('snarky-title'),
+  snarkyMsg: document.getElementById('snarky-msg'),
+  snarkyClose: document.getElementById('snarky-close')
+};
+
+// 顯示動態嘲諷視窗
+function showSnarkyMsg(title, msg, btnText = "我知道錯了") {
+  els.snarkyTitle.textContent = title;
+  els.snarkyMsg.textContent = msg;
+  els.snarkyClose.textContent = btnText;
+  els.snarkyOverlay.classList.add('show');
+}
+
+// 更新按鈕解鎖狀態
+function updateDiffButtons() {
+  document.querySelectorAll('.diff-buttons button').forEach(btn => {
+    const lvl = parseInt(btn.dataset.level, 10);
+    const diff = parseInt(btn.dataset.diff, 10);
+    const timeMin = LEVEL_CONFIG[diff].time / 60;
+    
+    if (lvl > unlockedLevel) {
+      btn.disabled = true;
+      btn.innerHTML = `🔒 ${LEVEL_CONFIG[diff].name} (需通關上一難度)`;
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = `${LEVEL_CONFIG[diff].name} (${timeMin} 分鐘)`;
+    }
+  });
+}
 
 function buildBoardDOM() {
-  boardEl.innerHTML = '';
+  els.board.innerHTML = '';
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
-      cell.dataset.r = r;
-      cell.dataset.c = c;
-      cell.addEventListener('click', () => selectCell(r, c));
-      boardEl.appendChild(cell);
+      cell.id = `cell-${r}-${c}`;
+      
+      const notesGrid = document.createElement('div');
+      notesGrid.className = 'notes-grid';
+      for(let i=1; i<=9; i++) {
+        const noteNum = document.createElement('span');
+        noteNum.className = `note-number note-${i}`;
+        notesGrid.appendChild(noteNum);
+      }
+      cell.appendChild(notesGrid);
+      
+      const valSpan = document.createElement('span');
+      valSpan.className = 'cell-value';
+      cell.appendChild(valSpan);
+
+      cell.addEventListener('click', (e) => { e.stopPropagation(); selectCell(r, c); });
+      els.board.appendChild(cell);
     }
   }
 }
 
 function buildNumpad() {
-  numpadEl.innerHTML = '';
+  els.numpad.innerHTML = '';
   for (let n = 1; n <= 9; n++) {
     const b = document.createElement('button');
     b.textContent = n;
-    b.addEventListener('click', () => inputNumber(n));
-    numpadEl.appendChild(b);
+    b.addEventListener('click', (e) => { e.stopPropagation(); inputNumber(n); });
+    els.numpad.appendChild(b);
   }
 }
 
-/* Timer only starts once the player makes their first move, not the
-   moment the page loads. Everything before that first move reads 00:00. */
-function startTimer() {
-  clearInterval(state.timerInterval);
-  state.timerStart = Date.now();
-  state.timerInterval = setInterval(() => {
-    const secs = Math.floor((Date.now() - state.timerStart) / 1000);
-    const m = String(Math.floor(secs / 60)).padStart(2, '0');
-    const s = String(secs % 60).padStart(2, '0');
-    timerEl.textContent = `${m}:${s}`;
-  }, 500);
-}
-
-function ensureTimerStarted() {
-  if (state.started) return;
-  state.started = true;
-  startTimer();
-}
-
 function newGame(holes) {
-  state.holes = holes ?? state.holes;
-  const { puzzle, solution } = generatePuzzle(state.holes);
-  state.puzzle = puzzle;
-  state.solution = solution;
-  state.board = cloneBoard(puzzle);
-  state.selected = null;
-  state.mistakes = 0;
-  state.won = false;
-  state.started = false;
-  clearInterval(state.timerInterval);
-  timerEl.textContent = '00:00';
-  mistakesEl.textContent = '0 誤';
-  winOverlay.classList.remove('show');
-  render();
+  clearTimeout(state.idleTimeout); // 清除舊的閒置計時器
+
+  if (holes) state.holes = holes;
+  updateDiffButtons();
+  flashStatus('正在為您準備謎題...', true);
+  
+  setTimeout(() => {
+    const { puzzle, solution } = generatePuzzle(state.holes);
+    state = { ...state, 
+      puzzle, solution, board: puzzle.map(row => row.slice()),
+      notes: emptyNotesBoard(),
+      selected: null, mistakes: 0, started: false, won: false, gameOver: false,
+      hintsUsed: 0, timeTauntShown: false // 重置嘲諷狀態
+    };
+    
+    els.btnHint.innerHTML = '<span class="k">?</span>提示一格 (1/1)';
+    els.btnHint.disabled = false;
+
+    stopTimer();
+    state.timeLeft = LEVEL_CONFIG[state.holes].time;
+    renderTime(state.timeLeft);
+    
+    els.mistakes.textContent = '0';
+    els.mistakePanel.classList.remove('danger');
+    els.winOverlay.classList.remove('show');
+    els.gameOverOverlay.classList.remove('show');
+    els.snarkyOverlay.classList.remove('show');
+    document.querySelectorAll('.cell.error').forEach(el => el.classList.remove('error'));
+    
+    // --- 20秒放置Play嘲諷機制 ---
+    els.status.textContent = '請盡快開始，超過 20 秒未動作將自動開始計時！';
+    els.status.style.color = 'var(--gold-soft)';
+    
+    state.idleTimeout = setTimeout(() => {
+      if (!state.started && !state.won && !state.gameOver) {
+        showSnarkyMsg("抓到了！", "還想先把全部看完再填阿，遜咖", "馬上開始");
+        ensureTimerStarted(); // 強制開始計時
+      }
+    }, 20000); // 20秒
+
+    render();
+  }, 50);
 }
 
 function selectCell(r, c) {
-  if (state.won) return;
+  if (state.won || state.gameOver) return;
   state.selected = [r, c];
   render();
 }
 
+document.addEventListener('click', () => {
+  if (state.selected) {
+    state.selected = null;
+    render();
+  }
+});
+
 function inputNumber(num) {
-  if (state.won || !state.selected) return;
+  if (state.won || state.gameOver || !state.selected) return;
   const [r, c] = state.selected;
-  if (state.puzzle[r][c] !== 0) return; // given cell, locked
+  if (state.puzzle[r][c] !== 0) return; 
 
   ensureTimerStarted();
 
-  state.board[r][c] = num;
-  const cellEl = cellAt(r, c);
-
-  if (num !== state.solution[r][c]) {
-    state.mistakes++;
-    mistakesEl.textContent = `${state.mistakes} 誤`;
-    cellEl.classList.add('shake');
-    setTimeout(() => cellEl.classList.remove('shake'), 350);
+  if (state.notesMode) {
+    if (state.board[r][c] !== 0) return; 
+    const cellNotes = state.notes[r][c];
+    if (cellNotes.has(num)) cellNotes.delete(num); 
+    else cellNotes.add(num);
   } else {
-    cellEl.classList.add('hint-fill');
-    setTimeout(() => cellEl.classList.remove('hint-fill'), 350);
-  }
+    state.board[r][c] = num;
+    state.notes[r][c].clear();
+    
+    const cellEl = getCellEl(r, c);
+    cellEl.classList.remove('error');
 
+    if (num !== state.solution[r][c]) {
+      state.mistakes++;
+      els.mistakes.textContent = state.mistakes;
+      cellEl.classList.add('error', 'shake');
+      if (state.mistakes >= MAX_MISTAKES - 1) els.mistakePanel.classList.add('danger');
+      setTimeout(() => cellEl.classList.remove('shake'), 350);
+      
+      checkGameOver(); 
+    } else {
+      cellEl.classList.add('hint-fill');
+      autoClearRelatedNotes(r, c, num);
+      setTimeout(() => cellEl.classList.remove('hint-fill'), 300);
+      checkWin(); 
+    }
+  }
   render();
-  checkWin();
 }
 
 function eraseCell() {
-  if (state.won || !state.selected) return;
+  if (state.won || state.gameOver || !state.selected) return;
   const [r, c] = state.selected;
   if (state.puzzle[r][c] !== 0) return;
-  state.board[r][c] = 0;
+  
+  if (state.notesMode && state.board[r][c] === 0) {
+    state.notes[r][c].clear(); 
+  } else {
+    state.board[r][c] = 0; 
+    getCellEl(r, c).classList.remove('error');
+  }
   render();
 }
 
 function giveHint() {
-  if (state.won) return;
+  if (state.won || state.gameOver || state.hintsUsed >= 1) return;
   const empties = [];
-  for (let r = 0; r < SIZE; r++)
-    for (let c = 0; c < SIZE; c++)
-      if (state.board[r][c] === 0) empties.push([r, c]);
+  for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++) if (state.board[r][c] === 0) empties.push([r, c]);
   if (empties.length === 0) return;
 
   ensureTimerStarted();
-
   const [r, c] = empties[Math.floor(Math.random() * empties.length)];
   state.board[r][c] = state.solution[r][c];
+  state.notes[r][c].clear(); 
   state.selected = [r, c];
+  
+  state.hintsUsed++;
+  els.btnHint.innerHTML = '<span class="k">?</span>提示已使用 (0/1)';
+  els.btnHint.disabled = true;
+
   render();
-  const cellEl = cellAt(r, c);
+  const cellEl = getCellEl(r, c);
+  cellEl.classList.remove('error');
   cellEl.classList.add('hint-fill');
+  autoClearRelatedNotes(r, c, state.solution[r][c]);
   setTimeout(() => cellEl.classList.remove('hint-fill'), 350);
   checkWin();
 }
 
-function checkBoardCorrectness() {
-  let allCorrect = true;
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      const cellEl = cellAt(r, c);
-      const v = state.board[r][c];
-      if (v !== 0 && v !== state.solution[r][c]) {
-        cellEl.classList.add('error');
-        allCorrect = false;
-      } else {
-        cellEl.classList.remove('error');
-      }
-    }
-  }
-  return allCorrect;
+function toggleNotesMode() {
+  if (state.won || state.gameOver) return;
+  state.notesMode = !state.notesMode;
+  els.btnNote.classList.toggle('active', state.notesMode);
+  updateStatusDefault();
 }
 
+function autoClearRelatedNotes(row, col, num) {
+  for (let i=0; i<SIZE; i++) {
+    state.notes[row][i].delete(num);
+    state.notes[i][col].delete(num);
+  }
+  const br = Math.floor(row / BOX) * BOX, bc = Math.floor(col / BOX) * BOX;
+  for (let r=br; r<br+BOX; r++) for (let c=bc; c<bc+BOX; c++) state.notes[r][c].delete(num);
+}
+
+// 勝利判定與解鎖邏輯
 function checkWin() {
-  const filled = state.board.every(row => row.every(v => v !== 0));
-  const correct = checkBoardCorrectness();
-  if (filled && correct) {
+  const filled = state.board.every((row, r) => row.every((v, c) => v === state.solution[r][c]));
+  if (filled) {
     state.won = true;
-    clearInterval(state.timerInterval);
-    winDetail.textContent = `用時 ${timerEl.textContent}，錯誤 ${state.mistakes} 次。`;
-    winOverlay.classList.add('show');
+    stopTimer();
+    
+    const currentConfig = LEVEL_CONFIG[state.holes];
+    let unlockMsg = '';
+
+    if (currentConfig.level === unlockedLevel && currentConfig.level < 3) {
+      unlockedLevel++;
+      localStorage.setItem('sudoku_unlocked', unlockedLevel);
+      updateDiffButtons();
+      
+      const nextLevelName = Object.values(LEVEL_CONFIG).find(cfg => cfg.level === unlockedLevel).name;
+      unlockMsg = `\n🎉 恭喜！您已成功解鎖【${nextLevelName}】難度！`;
+    }
+
+    const timeUsed = currentConfig.time - state.timeLeft;
+    const m = String(Math.floor(timeUsed / 60)).padStart(2,'0');
+    const s = String(timeUsed % 60).padStart(2,'0');
+
+    els.winDetail.textContent = `通關時間 ${m}:${s}，犯錯 ${state.mistakes} 次。${unlockMsg}`;
+    els.winOverlay.classList.add('show');
   }
 }
 
-function cellAt(r, c) {
-  return boardEl.children[r * SIZE + c];
+function checkGameOver(reason = 'mistakes') {
+  if (state.mistakes >= MAX_MISTAKES || reason === 'time') {
+    state.gameOver = true;
+    stopTimer();
+    
+    if (reason === 'time') {
+      els.gameoverDesc.textContent = "時間到了！您沒有在限制時間內完成盤面。";
+    } else {
+      els.gameoverDesc.textContent = "很遺憾，您已經達到了 3 次錯誤上限。";
+    }
+    els.gameOverOverlay.classList.add('show');
+  }
 }
 
 function render() {
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      const cellEl = cellAt(r, c);
+  for (let r=0; r<SIZE; r++) {
+    for (let c=0; c<SIZE; c++) {
+      const cellEl = getCellEl(r, c);
+      const valSpan = cellEl.querySelector('.cell-value');
+      const notesGrid = cellEl.querySelector('.notes-grid');
       const v = state.board[r][c];
-      cellEl.textContent = v === 0 ? '' : v;
-      cellEl.classList.toggle('given', state.puzzle[r][c] !== 0);
+      const given = state.puzzle[r][c] !== 0;
 
+      if (v !== 0) {
+        valSpan.textContent = v;
+        notesGrid.style.display = 'none'; 
+        valSpan.style.display = 'block';
+      } else {
+        valSpan.textContent = '';
+        valSpan.style.display = 'none';
+        const cellNotes = state.notes[r][c];
+        if (cellNotes.size > 0) {
+          notesGrid.style.display = 'grid';
+          for(let i=1; i<=9; i++) {
+            const noteEl = notesGrid.querySelector(`.note-${i}`);
+            noteEl.textContent = cellNotes.has(i) ? i : '';
+          }
+        } else {
+          notesGrid.style.display = 'none';
+        }
+      }
+
+      cellEl.classList.toggle('given', given);
       cellEl.classList.remove('selected', 'peer', 'same-value');
 
       if (state.selected) {
         const [sr, sc] = state.selected;
         const sameRow = r === sr, sameCol = c === sc;
         const sameBox = Math.floor(r/BOX) === Math.floor(sr/BOX) && Math.floor(c/BOX) === Math.floor(sc/BOX);
-        if (r === sr && c === sc) {
-          cellEl.classList.add('selected');
-        } else if (sameRow || sameCol || sameBox) {
-          cellEl.classList.add('peer');
-        }
+        
+        if (sameRow && sameCol) cellEl.classList.add('selected');
+        else if (sameRow || sameCol || sameBox) cellEl.classList.add('peer');
+
         const selVal = state.board[sr][sc];
         if (selVal !== 0 && v === selVal) cellEl.classList.add('same-value');
       }
     }
   }
-  checkBoardCorrectness();
 }
 
-/* ---------------- Controls wiring ---------------- */
+function getCellEl(r, c) { return document.getElementById(`cell-${r}-${c}`); }
+
+// --- 倒數計時器與動態嘲諷邏輯 ---
+function ensureTimerStarted() { 
+  if (!state.started) { 
+    clearTimeout(state.idleTimeout); // 玩家有動作了，清除閒置嘲諷計時器
+    state.started = true; 
+    startTimer(); 
+    updateStatusDefault(); // 恢復正常標題
+  } 
+}
+function startTimer() {
+  stopTimer();
+  state.timerStart = Date.now();
+  state.timerInterval = setInterval(updateTimer, 500); 
+}
+function stopTimer() { clearInterval(state.timerInterval); }
+function updateTimer() {
+  if (!state.started || state.won || state.gameOver) return;
+  const elapsed = Math.floor((Date.now() - state.timerStart) / 1000);
+  const totalLimit = LEVEL_CONFIG[state.holes].time;
+  state.timeLeft = totalLimit - elapsed;
+  
+  // --- 依照難度的特定時間嘲諷機制 ---
+  if (!state.timeTauntShown) {
+    let tauntMsg = "";
+    // 簡單版: 剩餘 3 分鐘 (180秒)
+    if (state.holes === 35 && state.timeLeft <= 180) {
+      tauntMsg = "剩餘3分鐘囉，是不是不行啊？\n菜，就多練";
+    }
+    // 中級版: 剩餘 4 分鐘 (240秒)
+    else if (state.holes === 45 && state.timeLeft <= 240) {
+      tauntMsg = "時間差不多囉，還沒完成嗎？\n難怪我一直聞到一股菜味";
+    }
+    // 高級版: 剩餘 6 分鐘 (360秒)
+    else if (state.holes === 55 && state.timeLeft <= 360) {
+      tauntMsg = "行不行啊，我阿公都比你快，遜咖";
+    }
+
+    if (tauntMsg) {
+      state.timeTauntShown = true;
+      showSnarkyMsg("時間警告！", tauntMsg, "我知道了啦！");
+    }
+  }
+
+  // --- 結束判定 ---
+  if (state.timeLeft <= 0) {
+    state.timeLeft = 0;
+    renderTime(0);
+    checkGameOver('time');
+  } else {
+    renderTime(state.timeLeft);
+  }
+}
+function renderTime(secs) {
+  const m = String(Math.floor(secs / 60)).padStart(2,'0');
+  const s = String(secs % 60).padStart(2,'0');
+  els.timer.textContent = `${m}:${s}`;
+  els.timer.style.color = secs <= 60 ? 'var(--red)' : 'var(--paper)';
+}
+
+function updateStatusDefault() {
+  els.status.textContent = state.notesMode ? '✦ 筆記模式開啟中 (1-9 填寫筆記)' : '點格子輸入，或按 Shift 鍵切換筆記模式';
+  els.status.style.color = state.notesMode ? 'var(--note-color)' : '';
+}
+function flashStatus(msg, persistent=false) {
+  els.status.textContent = msg;
+  els.status.style.color = 'var(--gold-soft)';
+  if (!persistent) setTimeout(updateStatusDefault, 1800);
+}
+
+// 事件綁定
 document.querySelectorAll('.diff-buttons button').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (btn.disabled) return; 
     document.querySelectorAll('.diff-buttons button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     newGame(parseInt(btn.dataset.diff, 10));
   });
 });
 
-document.getElementById('btn-new').addEventListener('click', () => newGame());
-document.getElementById('btn-hint').addEventListener('click', giveHint);
-document.getElementById('btn-check').addEventListener('click', () => {
-  const ok = checkBoardCorrectness();
-  const banner = ok ? '目前為止都正確！' : '有格子填錯囉，已用紅色標出。';
-  flashMessage(banner);
-});
-document.getElementById('btn-erase').addEventListener('click', eraseCell);
-document.getElementById('win-close').addEventListener('click', () => newGame());
+document.getElementById('btn-note').addEventListener('click', (e) => { e.stopPropagation(); toggleNotesMode(); });
+document.getElementById('btn-hint').addEventListener('click', (e) => { e.stopPropagation(); giveHint(); });
+document.getElementById('btn-erase').addEventListener('click', (e) => { e.stopPropagation(); eraseCell(); });
+document.getElementById('btn-new').addEventListener('click', (e) => { e.stopPropagation(); newGame(); });
 
-function flashMessage(msg) {
-  const sub = document.querySelector('.subtitle');
-  const original = sub.textContent;
-  sub.textContent = msg;
-  sub.style.color = 'var(--gold-soft)';
-  setTimeout(() => { sub.textContent = original; sub.style.color = ''; }, 1600);
-}
+document.getElementById('btn-check').addEventListener('click', (e) => { 
+  e.stopPropagation();
+  if (!state.started || state.won || state.gameOver) return;
+  
+  let allCorrect = true;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const v = state.board[r][c];
+      if (v !== 0 && v !== state.solution[r][c]) {
+        getCellEl(r, c).classList.add('error');
+        allCorrect = false;
+      }
+    }
+  }
+  flashStatus(allCorrect ? '目前為止都正確！繼續保持！' : '有格子填錯囉，已用紅色標出。', false);
+});
+
+// 嘲諷視窗關閉按鈕
+els.snarkyClose.addEventListener('click', () => {
+  els.snarkyOverlay.classList.remove('show');
+});
+
+// 過關/失敗視窗按鈕
+document.getElementById('win-close').addEventListener('click', () => {
+  const maxUnlockedBtn = Array.from(document.querySelectorAll('.diff-buttons button'))
+                              .reverse().find(b => !b.disabled);
+  if(maxUnlockedBtn) maxUnlockedBtn.click();
+  else newGame();
+});
+document.getElementById('gameover-close').addEventListener('click', () => newGame());
 
 document.addEventListener('keydown', (e) => {
-  if (!state.selected) return;
+  if (e.key === 'Shift') { toggleNotesMode(); return; }
+
+  if (!state.selected || state.won || state.gameOver) return;
+  let [r, c] = state.selected;
+
   if (e.key >= '1' && e.key <= '9') {
     inputNumber(parseInt(e.key, 10));
   } else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
     eraseCell();
-  } else if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+  } else if (e.key.startsWith('Arrow')) {
     e.preventDefault();
-    let [r, c] = state.selected;
-    if (e.key === 'ArrowUp') r = Math.max(0, r - 1);
-    if (e.key === 'ArrowDown') r = Math.min(8, r + 1);
-    if (e.key === 'ArrowLeft') c = Math.max(0, c - 1);
-    if (e.key === 'ArrowRight') c = Math.min(8, c + 1);
+    if (e.key === 'ArrowUp') r = (r - 1 + SIZE) % SIZE; 
+    else if (e.key === 'ArrowDown') r = (r + 1) % SIZE;
+    else if (e.key === 'ArrowLeft') c = (c - 1 + SIZE) % SIZE;
+    else if (e.key === 'ArrowRight') c = (c + 1) % SIZE;
     selectCell(r, c);
   }
 });
 
-/* ---------------- Init ---------------- */
 buildBoardDOM();
 buildNumpad();
-newGame(35);
+updateDiffButtons();
+newGame(35); 
 </script>
 </body>
 </html>
