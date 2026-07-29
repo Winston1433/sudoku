@@ -9,7 +9,7 @@ const io = new Server(server);
 // 設定靜態檔案資料夾
 app.use(express.static('public'));
 
-// 簡單的數獨題目產生器（伺服器端備用，確保開房時有公平題目）
+// 簡單的數獨題目產生器
 function emptyBoard() { return Array.from({length: 9}, () => Array(9).fill(0)); }
 function isValid(board, row, col, num) {
   for (let i = 0; i < 9; i++) if (board[row][i] === num || board[i][col] === num) return false;
@@ -39,7 +39,6 @@ function generateServerPuzzle() {
   const solution = emptyBoard();
   solve(solution);
   const puzzle = solution.map(row => row.slice());
-  // 挖空 35 格
   let removed = 0;
   while (removed < 35) {
     let r = Math.floor(Math.random() * 9);
@@ -52,21 +51,19 @@ function generateServerPuzzle() {
   return { puzzle, solution };
 }
 
-// 房間資料儲存
 const rooms = {};
 
-// ----------------------------------------
-// Socket.io 房間與對戰邏輯
-// ----------------------------------------
 io.on('connection', (socket) => {
   console.log('連線成功！玩家 ID: ', socket.id);
 
   // 1. 建立房間
   socket.on('create_room', () => {
-    const roomId = Math.floor(1000 + Math.random() * 9000).toString(); // 隨機 4 碼房號
+    const roomId = Math.floor(1000 + Math.random() * 9000).toString();
     rooms[roomId] = {
       players: [socket.id],
-      gameData: generateServerPuzzle()
+      gameData: generateServerPuzzle(),
+      started: false,   // 遊戲是否已經正式開始（雙人到齊）
+      gameOver: false    // 遊戲是否已經分出勝負，避免重複判定
     };
     socket.join(roomId);
     socket.emit('room_joined', { roomId });
@@ -86,14 +83,15 @@ io.on('connection', (socket) => {
       socket.emit('room_joined', { roomId });
       console.log(`玩家 ${socket.id} 加入了房間 ${roomId}`);
 
-      // 雙人到齊，正式向房內所有人發送題目開始對戰
+      // 雙人到齊，正式開始對戰
+      rooms[roomId].started = true;
       io.to(roomId).emit('start_game', rooms[roomId].gameData);
     } else {
       socket.emit('error_msg', '找不到此房間代碼，請重新確認！');
     }
   });
 
-  // 3. 接收玩家進度更新，轉發給同房間的對手
+  // 3. 接收玩家進度更新
   socket.on('update_progress', (data) => {
     const { roomId, progress, mistakes } = data;
     if (roomId && rooms[roomId]) {
@@ -101,29 +99,38 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 4. 判定某一方獲勝
+  // 4. 判定某一方獲勝（正常解完）
   socket.on('win_game', (data) => {
     const { roomId } = data;
-    if (roomId && rooms[roomId]) {
-      io.to(roomId).emit('game_over', { winner: socket.id });
+    const room = rooms[roomId];
+    if (room && !room.gameOver) {
+      room.gameOver = true;
+      io.to(roomId).emit('game_over', { winner: socket.id, reason: 'solved' });
     }
   });
 
-  // 5. 玩家斷線清理
+  // 5. 玩家斷線或離開房間處理
   socket.on('disconnect', () => {
     console.log('玩家離開了，ID: ', socket.id);
     for (const roomId in rooms) {
-      rooms[roomId].players = rooms[roomId].players.filter(id => id !== socket.id);
-      if (rooms[roomId].players.length === 0) {
-        delete rooms[roomId];
+      const room = rooms[roomId];
+      if (!room.players.includes(socket.id)) continue;
+
+      // 只有「遊戲已經正式開始」且「尚未分出勝負」時，才判定對手獲勝
+      if (room.started && !room.gameOver) {
+        const opponentId = room.players.find(id => id !== socket.id);
+        if (opponentId) {
+          room.gameOver = true;
+          io.to(roomId).emit('game_over', { winner: opponentId, reason: 'opponent_disconnected' });
+        }
       }
+
+      // 清理房間
+      delete rooms[roomId];
     }
   });
 });
 
-// ----------------------------------------
-// 啟動伺服器
-// ----------------------------------------
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 遊戲競速伺服器已啟動！Port: ${PORT}`);

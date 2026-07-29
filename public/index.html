@@ -323,18 +323,28 @@ socket.on('opponent_update', (data) => {
   els.opponentMistakes.textContent = data.mistakes;
 });
 
-// 接收對戰勝負結果
+// 接收對戰勝負結果 (含對手斷線判斷)
 socket.on('game_over', (data) => {
   state.gameOver = true;
+
   if (data.winner === socket.id) {
+    // 我方獲勝
     els.resultTitle.textContent = "勝利！🎉";
     els.resultTitle.style.color = "var(--teal)";
-    els.resultDesc.textContent = "太神啦！你比對手更快完成數獨！";
+
+    if (data.reason === 'opponent_disconnected') {
+      // 對手中途關閉畫面 / 斷線退出
+      els.resultDesc.textContent = "對手退出畫面，您已獲勝！";
+    } else {
+      els.resultDesc.textContent = "太神啦！你比對手更快完成數獨！";
+    }
   } else {
+    // 對方獲勝
     els.resultTitle.textContent = "落敗... 😢";
     els.resultTitle.style.color = "var(--red)";
     els.resultDesc.textContent = "慢了一步！對手已經率先通關了！";
   }
+
   els.resultOverlay.classList.add('show');
 });
 
@@ -474,7 +484,6 @@ function updateMyProgress() {
   const progress = totalEmpties === 0 ? 100 : Math.floor((correctFilled / totalEmpties) * 100);
   els.myProgress.textContent = `${progress}%`;
 
-  // 傳送進度給伺服器，讓對手看到
   socket.emit('update_progress', { roomId: currentRoomId, progress, mistakes: state.mistakes });
 }
 
@@ -556,7 +565,7 @@ document.getElementById('btn-check').addEventListener('click', (e) => {
 });
 
 els.resultClose.addEventListener('click', () => {
-  location.reload(); // 重新整理返回大廳
+  location.reload();
 });
 
 // 鍵盤輸入監聽
