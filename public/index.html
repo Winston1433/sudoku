@@ -77,6 +77,28 @@
   }
   .lobby-group input:focus { outline: 2px solid var(--teal-soft); }
 
+  /* 難度選擇區 */
+  .difficulty-section { width: 100%; margin: 4px 0 10px; }
+  .difficulty-label {
+    font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold-soft);
+    margin-bottom: 10px; text-align: left;
+  }
+  .difficulty-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .difficulty-btn {
+    background: var(--bg); border: 1px solid rgba(255,255,255,0.15); color: #9aa2b3;
+    padding: 12px 6px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; width: 100%; margin: 0;
+  }
+  .difficulty-btn:hover { border-color: var(--teal-soft); color: var(--teal-soft); }
+  .difficulty-btn.selected {
+    background: var(--teal); border-color: var(--teal); color: var(--paper);
+    box-shadow: 0 0 0 2px rgba(127,194,188,0.35);
+  }
+  .difficulty-btn[data-diff="hard"].selected { background: var(--red); border-color: var(--red); box-shadow: 0 0 0 2px rgba(193,73,77,0.35); }
+  .difficulty-btn[data-diff="medium"].selected { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 0 2px rgba(216,167,61,0.35); }
+
+  #btn-create-room:disabled { opacity: 0.35; cursor: not-allowed; }
+
   /* 遊戲主介面預設隱藏 */
   #game-container { display: none; }
 
@@ -183,9 +205,18 @@
   <div class="eyebrow">1v1 競速對戰模式</div>
   <h1>數<span class="accent">獨</span> 對決</h1>
   <div id="online-status" style="margin-bottom: 20px;">🟡 連線伺服器中...</div>
-  
+
+  <div class="difficulty-section">
+    <div class="difficulty-label">請先選擇難度</div>
+    <div class="difficulty-group" id="difficulty-group">
+      <button type="button" class="difficulty-btn" data-diff="easy">簡單</button>
+      <button type="button" class="difficulty-btn" data-diff="medium">中等</button>
+      <button type="button" class="difficulty-btn" data-diff="hard">困難</button>
+    </div>
+  </div>
+
   <div class="lobby-group">
-    <button class="primary" id="btn-create-room" style="background: var(--teal); border:none; padding:14px; font-size:16px; font-weight:600; border-radius:4px; cursor:pointer; color:var(--paper);">建立新房間</button>
+    <button class="primary" id="btn-create-room" disabled style="background: var(--teal); border:none; padding:14px; font-size:16px; font-weight:600; border-radius:4px; cursor:pointer; color:var(--paper);">建立新房間</button>
   </div>
   
   <div style="margin: 15px 0; color: #6b6558; font-size: 13px;">— 或者 —</div>
@@ -256,6 +287,8 @@
 const socket = io();
 
 let currentRoomId = null;
+let selectedDifficulty = null; // 'easy' | 'medium' | 'hard'
+const DIFFICULTY_LABELS = { easy: '簡單', medium: '中等', hard: '困難' };
 const SIZE = 9, BOX = 3;
 
 let state = {
@@ -278,7 +311,9 @@ const els = {
   resultOverlay: document.getElementById('result-overlay'),
   resultTitle: document.getElementById('result-title'),
   resultDesc: document.getElementById('result-desc'),
-  resultClose: document.getElementById('result-close')
+  resultClose: document.getElementById('result-close'),
+  difficultyGroup: document.getElementById('difficulty-group'),
+  btnCreateRoom: document.getElementById('btn-create-room')
 };
 
 // --- 連線狀態監聽 ---
@@ -297,7 +332,8 @@ socket.on('room_joined', (data) => {
   currentRoomId = data.roomId;
   els.lobbyScreen.style.display = 'none';
   els.gameContainer.style.display = 'block';
-  els.roomInfoLabel.textContent = `房間代碼: ${currentRoomId}`;
+  const diffLabel = DIFFICULTY_LABELS[data.difficulty] || '中等';
+  els.roomInfoLabel.textContent = `房間代碼: ${currentRoomId}｜難度: ${diffLabel}`;
   els.gameStatus.textContent = '等待對手加入房間中...';
   buildBoardDOM();
   buildNumpad();
@@ -310,8 +346,10 @@ socket.on('error_msg', (msg) => {
 
 // 雙人到齊，伺服器派發題目開始對戰
 socket.on('start_game', (data) => {
-  const { puzzle, solution } = data;
+  const { puzzle, solution, difficulty } = data;
   loadGame(puzzle, solution);
+  const diffLabel = DIFFICULTY_LABELS[difficulty] || '中等';
+  els.roomInfoLabel.textContent = `房間代碼: ${currentRoomId}｜難度: ${diffLabel}`;
   els.gameStatus.textContent = '⚔️ 雙人競速對戰開始！先解開者獲勝！';
   els.gameStatus.style.color = 'var(--gold-soft)';
   state.started = true;
@@ -348,9 +386,29 @@ socket.on('game_over', (data) => {
   els.resultOverlay.classList.add('show');
 });
 
+// --- 難度選擇 ---
+els.difficultyGroup.addEventListener('click', (e) => {
+  const btn = e.target.closest('.difficulty-btn');
+  if (!btn) return;
+
+  selectedDifficulty = btn.dataset.diff;
+
+  // 更新按鈕選取狀態
+  els.difficultyGroup.querySelectorAll('.difficulty-btn').forEach(b => {
+    b.classList.toggle('selected', b === btn);
+  });
+
+  // 選好難度才能建立房間
+  els.btnCreateRoom.disabled = false;
+});
+
 // --- 大廳按鈕事件 ---
 document.getElementById('btn-create-room').addEventListener('click', () => {
-  socket.emit('create_room');
+  if (!selectedDifficulty) {
+    alert('請先選擇難度！');
+    return;
+  }
+  socket.emit('create_room', { difficulty: selectedDifficulty });
 });
 
 document.getElementById('btn-join-room').addEventListener('click', () => {
