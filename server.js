@@ -9,6 +9,13 @@ const io = new Server(server);
 // 設定靜態檔案資料夾
 app.use(express.static('public'));
 
+// 難度設定：對應要挖空的格數（挖越多格越難）
+const DIFFICULTY_SETTINGS = {
+  easy:   36, // 簡單
+  medium: 46, // 中等
+  hard:   54  // 困難
+};
+
 // 簡單的數獨題目產生器
 function emptyBoard() { return Array.from({length: 9}, () => Array(9).fill(0)); }
 function isValid(board, row, col, num) {
@@ -35,12 +42,16 @@ function solve(board) {
   }
   return false;
 }
-function generateServerPuzzle() {
+
+// difficulty: 'easy' | 'medium' | 'hard'，預設為 medium
+function generateServerPuzzle(difficulty) {
+  const removeCount = DIFFICULTY_SETTINGS[difficulty] || DIFFICULTY_SETTINGS.medium;
+
   const solution = emptyBoard();
   solve(solution);
   const puzzle = solution.map(row => row.slice());
   let removed = 0;
-  while (removed < 35) {
+  while (removed < removeCount) {
     let r = Math.floor(Math.random() * 9);
     let c = Math.floor(Math.random() * 9);
     if (puzzle[r][c] !== 0) {
@@ -56,21 +67,24 @@ const rooms = {};
 io.on('connection', (socket) => {
   console.log('連線成功！玩家 ID: ', socket.id);
 
-  // 1. 建立房間
-  socket.on('create_room', () => {
+  // 1. 建立房間（需帶入難度：easy / medium / hard）
+  socket.on('create_room', (data) => {
+    const difficulty = (data && DIFFICULTY_SETTINGS[data.difficulty]) ? data.difficulty : 'medium';
     const roomId = Math.floor(1000 + Math.random() * 9000).toString();
+
     rooms[roomId] = {
       players: [socket.id],
-      gameData: generateServerPuzzle(),
+      difficulty,
+      gameData: generateServerPuzzle(difficulty),
       started: false,   // 遊戲是否已經正式開始（雙人到齊）
       gameOver: false    // 遊戲是否已經分出勝負，避免重複判定
     };
     socket.join(roomId);
-    socket.emit('room_joined', { roomId });
-    console.log(`玩家 ${socket.id} 建立了房間 ${roomId}`);
+    socket.emit('room_joined', { roomId, difficulty });
+    console.log(`玩家 ${socket.id} 建立了房間 ${roomId}（難度：${difficulty}）`);
   });
 
-  // 2. 加入房間
+  // 2. 加入房間（沿用建立者當初選擇的難度與題目，不重新產生）
   socket.on('join_room', (data) => {
     const { roomId } = data;
     if (rooms[roomId]) {
@@ -80,12 +94,15 @@ io.on('connection', (socket) => {
       }
       rooms[roomId].players.push(socket.id);
       socket.join(roomId);
-      socket.emit('room_joined', { roomId });
+      socket.emit('room_joined', { roomId, difficulty: rooms[roomId].difficulty });
       console.log(`玩家 ${socket.id} 加入了房間 ${roomId}`);
 
       // 雙人到齊，正式開始對戰
       rooms[roomId].started = true;
-      io.to(roomId).emit('start_game', rooms[roomId].gameData);
+      io.to(roomId).emit('start_game', {
+        ...rooms[roomId].gameData,
+        difficulty: rooms[roomId].difficulty
+      });
     } else {
       socket.emit('error_msg', '找不到此房間代碼，請重新確認！');
     }
